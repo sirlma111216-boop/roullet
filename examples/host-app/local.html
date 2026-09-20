@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>서버 없이 넣기 — 교실 구슬 레이스</title>
+    <style>
+      :root {
+        --bg: #f6f7fb;
+        --card: #fff;
+        --ink: #1c2233;
+        --faint: #6b7280;
+        --line: #e3e6ef;
+        --accent: #3b5bdb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #10131c;
+          --card: #171b27;
+          --ink: #e8ebf5;
+          --faint: #99a0b5;
+          --line: #262c3d;
+          --accent: #6d8bff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px 16px 48px;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.6 system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      }
+      .wrap { max-width: 960px; margin: 0 auto; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      .sub { color: var(--faint); margin: 0 0 20px; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 110px;
+        font: inherit;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--ink);
+        resize: vertical;
+      }
+      button {
+        font: inherit;
+        font-weight: 600;
+        padding: 9px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+      }
+      button.ghost { background: transparent; color: var(--accent); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      #stage {
+        height: 560px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #080b14;
+      }
+      #winners { font-size: 17px; font-weight: 700; }
+      .faint { color: var(--faint); font-size: 13px; }
+      code {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 13px;
+      }
+      .warn {
+        border-left: 3px solid #d6a02a;
+        padding-left: 10px;
+        color: var(--faint);
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>서버 없이 넣기</h1>
+      <p class="sub">
+        티켓도, 공유 비밀도, 활동 앱 등록도 없습니다. 이 화면이 하는 일은
+        <strong>명단을 넣고 · 시작을 누르고 · 당첨자를 받는 것</strong> 셋뿐입니다.
+      </p>
+
+      <div class="card">
+        <label for="names"><strong>명단</strong> — 한 줄에 한 명</label>
+        <textarea id="names">
+김하늘
+박서준
+이도윤
+최지우
+정민서
+강예린
+조하준
+윤서아</textarea
+        >
+        <div class="row" style="margin-top: 10px">
+          <button id="go">발표자 뽑기</button>
+          <button id="again" class="ghost" disabled>다시 뽑기</button>
+          <span id="status" class="faint">준비 중…</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div id="winners">—</div>
+        <div id="detail" class="faint"></div>
+        <div id="verified" class="warn" style="margin-top: 8px; display: none"></div>
+      </div>
+
+      <div id="stage"></div>
+
+      <p class="faint" style="margin-top: 16px">
+        이 화면 전체가 <code>local.html</code> 하나입니다. 서버 쪽 코드는 한 줄도 쓰지 않았습니다.
+      </p>
+    </div>
+
+    <script type="module">
+      import { createMarbleRace } from '/sdk.js';
+
+      const $ = (id) => document.getElementById(id);
+      const status = (t) => ($('status').textContent = t);
+
+      // 활동 앱 주소. 배포본을 쓰려면 이 줄만 바꾸면 된다.
+      const ACTIVITY_ORIGIN = new URLSearchParams(location.search).get('activity') ?? 'http://127.0.0.1:8787';
+
+      const namesOf = () =>
+        $('names')
+          .value.split(/\n+/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((nickname, i) => ({ id: `u${i}`, nickname }));
+
+      const race = createMarbleRace({
+        activityOrigin: ACTIVITY_ORIGIN,
+        mode: 'local', // ← 이것 하나가 서버 없는 모드로 여는 스위치다
+        participants: namesOf(),
+        title: '발표자 뽑기',
+      });
+
+      let ready = false;
+
+      race.on('ready', () => {
+        ready = true;
+        status('준비됨');
+        $('go').disabled = false;
+      });
+
+      race.on('error', (e) => {
+        status(`오류: ${e.message}`);
+      });
+
+      race.on('roundStarted', () => {
+        status('경기 중…');
+        $('go').disabled = true;
+        $('again').disabled = true;
+        $('winners').textContent = '—';
+        $('detail').textContent = '';
+      });
+
+      race.on('roundFinished', (p) => {
+        const names = p.result.winners.map((w) => w.nickname);
+        $('winners').textContent = names.length ? names.join(', ') : '당첨자 없음';
+        $('detail').textContent = `${p.result.finishOrder.length}명 완주 · ${p.result.mapId} · ${p.result.outcome}`;
+
+        // serverVerified 가 false 라는 것을 화면에 그대로 적는다 — 숨기지 않는다
+        const v = $('verified');
+        v.style.display = 'block';
+        v.textContent = p.serverVerified
+          ? '서버가 확인한 결과입니다.'
+          : '이 결과는 브라우저가 계산한 값입니다(서버 확인 없음). 화면 하나에서 다 같이 보는 용도입니다.';
+
+        status('끝');
+        $('go').disabled = false;
+        $('again').disabled = false;
+      });
+
+      $('go').addEventListener('click', async () => {
+        if (!ready) return;
+        try {
+          await race.setParticipants(namesOf());
+          await race.startRound(1);
+        } catch (err) {
+          status(`오류: ${err.message}`);
+          $('go').disabled = false;
+        }
+      });
+
+      $('again').addEventListener('click', async () => {
+        try {
+          await race.resetRound();
+          await race.startRound(1);
+        } catch (err) {
+          status(`오류: ${err.message}`);
+        }
+      });
+
+      race.mount($('stage'));
+      status('활동 앱을 여는 중…');
+    </script>
+  </body>
+</html>

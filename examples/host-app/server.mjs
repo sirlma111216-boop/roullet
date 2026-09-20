@@ -143,10 +143,19 @@ const server = createServer(async (req, res) => {
       res.end(html.replaceAll('__ACTIVITY_ORIGIN__', ACTIVITY_ORIGIN).replaceAll('__INTEGRATION_ID__', INTEGRATION_ID));
       return;
     }
+    // 서버가 필요 없는 모드 데모 — 이 경로는 서버 쪽 코드를 하나도 쓰지 않는다
+    if (req.method === 'GET' && url.pathname === '/local') {
+      const html = await readFile(join(HERE, 'local.html'), 'utf8');
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/sdk.js') {
       // 저장소에서 바로 읽어 내보낸다(예제라서 이렇게 한다).
       // 진짜 수업 앱이라면 제 번들러로 @marble/embed-sdk 를 가져다 쓰면 된다.
-      const sdkPath = join(HERE, '../../packages/embed-sdk/dist/marble-race-sdk.js');
+      // SDK 는 apps/web/public/sdk 로 빌드된다(활동 앱이 그대로 내보내는 자리).
+      // 옛 경로(packages/embed-sdk/dist)를 읽으면 낡은 번들을 조용히 내보내게 된다.
+      const sdkPath = join(HERE, '../../apps/web/public/sdk/marble-race-sdk.js');
       const js = await readFile(sdkPath, 'utf8').catch(() => null);
       if (!js) {
         return json(res, 500, {

@@ -4,7 +4,10 @@
  * 지키는 것:
  *  - 부모가 보낸 메시지는 **origin·source·세션·형식**을 모두 본 뒤에만 받아들인다.
  *  - 답할 때는 정확한 targetOrigin 으로만 보낸다. '*' 를 쓰지 않는다.
- *  - 신원은 오직 **서명된 티켓**이다. 부모가 보낸 role 글자나 닉네임만으로 교사가 되지 않는다.
+ *  - live 모드에서 신원은 오직 **서명된 티켓**이다. 부모가 보낸 role 글자나 닉네임만으로
+ *    교사가 되지 않는다.
+ *  - local 모드에는 방도 티켓도 없다. 이 iframe 안에서 혼자 돌고, 결과는
+ *    «서버가 확인해 준 것이 아님»(serverVerified: false)을 달아 돌려준다.
  *  - 경기 중에 온 명단·설정 변경은 다음 라운드로 미룬다.
  *  - 결과는 «화면용» 으로만 돌려주고, 부모가 서버에서 다시 확인할 주소를 함께 준다.
  */
@@ -16,9 +19,11 @@ import {
   EMBED_CAPABILITIES,
   EMBED_PROTOCOL_VERSION,
   isEmbedEnvelope,
+  LOCAL_MAX_PARTICIPANTS,
   parseRoundConfig,
+  parseMountPayload,
   type EmbedEnvelope,
-  type MountPayload,
+  type EmbedMode,
   type Participant,
   type RoundConfig,
   type SetConfigPayload,
@@ -30,13 +35,14 @@ import { RaceView } from '../components/RaceView.tsx';
 import { ResultPanel } from '../components/ResultPanel.tsx';
 import { Leaderboard } from '../components/Leaderboard.tsx';
 import { HostRuntime } from '../race/hostRuntime.ts';
+import { buildLocalParticipants, useLocalRace } from '../race/useLocalRace.ts';
 import { FrameInterpolator } from '../race/interpolator.ts';
 import { useRoom } from '../hooks/useRoom.ts';
 import { useRoundSound } from '../hooks/useRoundSound.ts';
 import { getViewPrefs, setViewPrefs, type ViewPrefs } from '../util/storage.ts';
 
 /** 배포 판 — 부모가 「옛 배포」를 알아볼 수 있게 함께 보낸다 */
-const BUILD = `embed-${EMBED_PROTOCOL_VERSION}.1`;
+const BUILD = `embed-${EMBED_PROTOCOL_VERSION}.2`;
 
 /** 티켓에서 방 코드만 꺼낸다(서명 검증은 서버가 한다). */
 function readTicket(ticket: string): { roomCode: string; role: 'teacher' | 'student'; name: string } | null {
@@ -61,7 +67,10 @@ function readTicket(ticket: string): { roomCode: string; role: 'teacher' | 'stud
 }
 
 interface MountState {
+  mode: EmbedMode;
+  /** local 모드에서는 빈 문자열 */
   ticket: string;
+  /** local 모드에서는 빈 문자열 */
   roomCode: string;
   view: 'teacher' | 'student';
   integrationId: string;
@@ -81,11 +90,15 @@ export function Embed(): React.ReactElement {
   const queuedRef = useRef<{ config?: RoundConfig; participants?: SetParticipantsPayload['participants'] }>({});
   const [queuedNotice, setQueuedNotice] = useState(false);
 
+  /** local 모드에서 부모가 넣어 준 명단(원본 그대로 — id 를 지켜야 한다) */
+  const [localRoster, setLocalRoster] = useState<SetParticipantsPayload['participants']>([]);
+
+  // local 모드에서는 방에 붙지 않는다 — 붙을 방이 없다
   const room = useRoom({
     code: mount?.roomCode ?? '',
     role: mount?.view ?? 'student',
     ticket: mount?.ticket,
-    enabled: Boolean(mount),
+    enabled: mount?.mode === 'live',
   });
 
   const hostRef = useRef<HostRuntime | null>(null);
@@ -138,6 +151,36 @@ export function Embed(): React.ReactElement {
     [post],
   );
 
+  /* ---------------------------------------------------------------- 지역 경기(local 모드) */
+
+  /**
+   * 「로컬 빠른 뽑기」 화면과 **같은 훅**이다. 규칙·마무리 처리가 갈라지지 않게 한다.
+   * live 모드에서는 start 를 부르지 않으므로 아무 일도 하지 않는다.
+   */
+  const local = useLocalRace({
+    onStarted: (snapshot, delayMs) => {
+      post('roundStarted', { roundId: snapshot.roundId, snapshot, startsAt: Date.now() + delayMs });
+    },
+    onFinished: (result) => {
+      post('roundFinished', buildLocalFinishedPayload(result));
+    },
+    onError: (message) => emitError('engine_error', message),
+  });
+
+  /** 부모가 준 id 를 그대로 지킨다 — 결과를 부모 앱 학생과 맞춰 볼 수 있어야 한다 */
+  const localParticipants = useMemo(
+    () =>
+      buildLocalParticipants(
+        localRoster.map((x) => x.nickname),
+        {
+          ids: localRoster.map((x) => x.id),
+          previousWinnerIds: local.previousWinnerIds,
+          excludePreviousWinners: config.excludePreviousWinners,
+        },
+      ),
+    [localRoster, local.previousWinnerIds, config.excludePreviousWinners],
+  );
+
   /* ---------------------------------------------------------------- 부모에게서 받기 */
 
   useEffect(() => {
@@ -178,26 +221,59 @@ export function Embed(): React.ReactElement {
 
       switch (env.type) {
         case 'mount': {
-          const p = env.payload as MountPayload;
-          if (typeof p?.ticket !== 'string' || !p.ticket) return fail('no_ticket', '티켓이 없습니다.');
-          const claims = readTicket(p.ticket);
+          const checked = parseMountPayload(env.payload);
+          if (!checked.ok) return fail(checked.code, checked.message);
+          const m = checked.value;
+
+          if (m.mode === 'local') {
+            setMount({
+              mode: 'local',
+              ticket: '',
+              roomCode: '',
+              view: 'teacher',
+              integrationId: '',
+              hideJoinUi: m.hideJoinUi !== false,
+            });
+            if (m.participants) setLocalRoster(m.participants);
+            if (rid) reply(rid, true, { accepted: true, mode: 'local' });
+            return;
+          }
+
+          const claims = readTicket(m.ticket!);
           if (!claims) return fail('bad_ticket', '티켓을 읽을 수 없습니다.');
           setMount({
-            ticket: p.ticket,
+            mode: 'live',
+            ticket: m.ticket!,
             roomCode: claims.roomCode,
             // 화면 종류는 부모가 고르되, **권한은 티켓의 role 만** 따른다.
             // 티켓이 학생인데 교사 화면을 달라고 해도 서버가 교사 권한을 주지 않는다.
-            view: claims.role === 'teacher' && p.view === 'teacher' ? 'teacher' : 'student',
-            integrationId: p.integrationId ?? '',
-            hideJoinUi: p.hideJoinUi !== false,
+            view: claims.role === 'teacher' && m.view === 'teacher' ? 'teacher' : 'student',
+            integrationId: m.integrationId ?? '',
+            hideJoinUi: m.hideJoinUi !== false,
           });
-          if (rid) reply(rid, true, { accepted: true });
+          if (rid) reply(rid, true, { accepted: true, mode: 'live' });
           return;
         }
 
         case 'setParticipants': {
           const p = env.payload as SetParticipantsPayload;
           if (!Array.isArray(p?.participants)) return fail('bad_payload', '명단 형식이 올바르지 않습니다.');
+
+          if (mount?.mode === 'local') {
+            if (p.participants.length > LOCAL_MAX_PARTICIPANTS) {
+              return fail('too_many', `한 번에 ${LOCAL_MAX_PARTICIPANTS}명까지만 넣을 수 있습니다.`);
+            }
+            if (local.phase === 'racing') {
+              queuedRef.current.participants = p.participants;
+              setQueuedNotice(true);
+              if (rid) reply(rid, true, { queuedForNextRound: true });
+              return;
+            }
+            setLocalRoster(p.participants);
+            if (rid) reply(rid, true, { applied: p.participants.length });
+            return;
+          }
+
           if (!room.conn) return fail('not_ready', '아직 방에 연결되지 않았습니다.');
           const racing = room.snapshot?.room.phase === 'countdown' || room.snapshot?.room.phase === 'running';
           if (racing) {
@@ -222,6 +298,20 @@ export function Embed(): React.ReactElement {
           const merged = { ...config, ...p.config };
           const parsed = parseRoundConfig(merged, MAP_IDS);
           if (!parsed.ok) return fail(parsed.code, parsed.message);
+
+          if (mount?.mode === 'local') {
+            // 서버가 없으므로 여기서 받아들이면 곧 적용된 것이다
+            if (local.phase === 'racing') {
+              queuedRef.current.config = parsed.value;
+              setQueuedNotice(true);
+              if (rid) reply(rid, true, { queuedForNextRound: true });
+              return;
+            }
+            setConfig(parsed.value);
+            if (rid) reply(rid, true, { config: parsed.value });
+            return;
+          }
+
           const racing = room.snapshot?.room.phase === 'countdown' || room.snapshot?.room.phase === 'running';
           if (racing) {
             queuedRef.current.config = parsed.value;
@@ -243,6 +333,35 @@ export function Embed(): React.ReactElement {
         }
 
         case 'startRound': {
+          if (mount?.mode === 'local') {
+            if (local.phase === 'racing') return fail('already_racing', '이미 경기가 돌고 있습니다.');
+            const q = queuedRef.current;
+            const roster = q.participants ?? localRoster;
+            const cfg = q.config ?? config;
+            if (q.participants) setLocalRoster(q.participants);
+            if (q.config) setConfig(cfg);
+            queuedRef.current = {};
+            setQueuedNotice(false);
+
+            const people = buildLocalParticipants(
+              roster.map((x) => x.nickname),
+              {
+                ids: roster.map((x) => x.id),
+                previousWinnerIds: local.previousWinnerIds,
+                excludePreviousWinners: cfg.excludePreviousWinners,
+              },
+            );
+            const countdownSec = (env.payload as { countdownSec?: number })?.countdownSec;
+            const started = local.start({
+              config: cfg,
+              racers: people.filter((x) => !x.excluded),
+              startDelayMs: typeof countdownSec === 'number' ? Math.max(0, countdownSec) * 1000 : undefined,
+            });
+            if (!started.ok) return fail(started.code, started.message);
+            if (rid) reply(rid, true, { roundId: started.roundId });
+            return;
+          }
+
           if (!room.conn) return fail('not_ready', '아직 방에 연결되지 않았습니다.');
           const q = queuedRef.current;
           try {
@@ -266,6 +385,13 @@ export function Embed(): React.ReactElement {
         }
 
         case 'cancelRound': {
+          if (mount?.mode === 'local') {
+            local.reset();
+            queuedRef.current = {};
+            setQueuedNotice(false);
+            if (rid) reply(rid, true, { cancelled: true });
+            return;
+          }
           if (!room.conn) return fail('not_ready', '아직 방에 연결되지 않았습니다.');
           try {
             await room.conn.request('teacher:cancel', {
@@ -284,11 +410,16 @@ export function Embed(): React.ReactElement {
           setQueuedNotice(false);
           activeRef.current = null;
           studentInterp.reset();
+          if (mount?.mode === 'local') local.reset();
           if (rid) reply(rid, true, { reset: true });
           return;
         }
 
         case 'getResult': {
+          if (mount?.mode === 'local') {
+            if (rid) reply(rid, true, local.result ? buildLocalFinishedPayload(local.result) : null);
+            return;
+          }
           if (rid) reply(rid, true, room.result ? buildFinishedPayload(room.result, mount) : null);
           return;
         }
@@ -304,7 +435,7 @@ export function Embed(): React.ReactElement {
           return fail('unknown_type', `모르는 요청입니다: ${env.type}`);
       }
     },
-    [config, emitError, mount, reply, room.conn, room.result, room.snapshot, studentInterp],
+    [config, emitError, local, localRoster, mount, reply, room.conn, room.result, room.snapshot, studentInterp],
   );
 
   // 리스너가 늘 최신 handle 을 보게 한다
@@ -313,7 +444,7 @@ export function Embed(): React.ReactElement {
   /* ---------------------------------------------------------------- 호스트(교사 화면일 때) */
 
   useEffect(() => {
-    if (!mount || mount.view !== 'teacher') return;
+    if (!mount || mount.mode !== 'live' || mount.view !== 'teacher') return;
     if (!room.conn || room.status !== 'open') return;
     const host = new HostRuntime(room.conn, {
       onError: (message) => emitError('engine_error', message),
@@ -369,9 +500,25 @@ export function Embed(): React.ReactElement {
   /* ---- 준비됨 ---- */
   const readySentRef = useRef(false);
   useEffect(() => {
-    if (readySentRef.current || !mount || !room.snapshot) return;
+    if (readySentRef.current || !mount) return;
+    if (mount.mode === 'local') {
+      // 기다릴 방이 없다 — mount 를 받아들인 순간이 곧 준비된 순간이다
+      readySentRef.current = true;
+      post('ready', {
+        mode: 'local',
+        roomId: null,
+        joinCode: null,
+        view: 'teacher',
+        participantId: null,
+        mapIds: [...MAP_IDS],
+        config,
+      });
+      return;
+    }
+    if (!room.snapshot) return;
     readySentRef.current = true;
     post('ready', {
+      mode: 'live',
       roomId: room.snapshot.room.roomId,
       joinCode: room.snapshot.room.joinCode,
       view: mount.view,
@@ -379,7 +526,25 @@ export function Embed(): React.ReactElement {
       mapIds: [...MAP_IDS],
       config: room.snapshot.room.config,
     });
+    // config 는 첫 ready 에만 쓰인다 — 바뀔 때마다 다시 보내지 않는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mount, room.snapshot, room.me, post]);
+
+  /* ---- local: 명단이 바뀌면 부모에게 알린다 ---- */
+  useEffect(() => {
+    if (mount?.mode !== 'local') return;
+    post('participantsChanged', {
+      participants: localParticipants.map((x) => ({
+        id: x.id,
+        nickname: x.nickname,
+        online: true,
+        excluded: x.excluded,
+      })),
+      onlineCount: localParticipants.length,
+      totalCount: localParticipants.length,
+      participantSnapshotVersion: 1,
+    });
+  }, [mount?.mode, localParticipants, post]);
 
   /* ---- 결과를 부모에게 ---- */
   useEffect(() => {
@@ -387,7 +552,8 @@ export function Embed(): React.ReactElement {
     post('roundFinished', buildFinishedPayload(room.result, mount));
   }, [room.result, mount, post]);
 
-  useRoundSound({ muted: prefs.muted, countdownLeft: 0, result: room.result });
+  const shownResult = mount?.mode === 'local' ? local.result : room.result;
+  useRoundSound({ muted: prefs.muted, countdownLeft: 0, result: shownResult });
 
   /* ---------------------------------------------------------------- 화면 */
 
@@ -413,10 +579,17 @@ export function Embed(): React.ReactElement {
     );
   }
 
-  const activeSnapshot = room.countdown?.snapshot ?? room.snapshot?.activeRound ?? activeRef.current;
+  const isLocal = mount.mode === 'local';
+  const activeSnapshot = isLocal
+    ? local.snapshot
+    : (room.countdown?.snapshot ?? room.snapshot?.activeRound ?? activeRef.current);
   const map = getMap(activeSnapshot?.mapId ?? config.mapId) ?? requireMap('classic-wheel');
   const isTeacher = mount.view === 'teacher';
-  const interpolator = isTeacher ? (hostRef.current?.interpolator ?? studentInterp) : studentInterp;
+  const interpolator = isLocal
+    ? local.interpolator
+    : isTeacher
+      ? (hostRef.current?.interpolator ?? studentInterp)
+      : studentInterp;
   const meIndex =
     activeSnapshot && room.me
       ? (() => {
@@ -426,7 +599,12 @@ export function Embed(): React.ReactElement {
       : null;
 
   const phase = room.snapshot?.room.phase ?? 'lobby';
-  const racing = phase === 'countdown' || phase === 'running';
+  const racing = isLocal ? local.phase === 'racing' : phase === 'countdown' || phase === 'running';
+  const errorText = isLocal ? local.error : (room.error?.message ?? null);
+  /** 로비에 보여 줄 사람들 — 모드에 따라 출처가 다르다 */
+  const lobbyPeople: Array<{ id: string; nickname: string; dupIndex: number; hue: number; online: boolean }> = isLocal
+    ? localParticipants
+    : (room.snapshot?.participants ?? []);
 
   return (
     <div className="page page--app play-layout">
@@ -437,14 +615,14 @@ export function Embed(): React.ReactElement {
         </div>
       ) : null}
 
-      {room.error ? (
+      {errorText ? (
         <div className="notice notice--bad" role="alert">
           <span className="notice__icon" aria-hidden="true">✕</span>
-          <span>{room.error.message}</span>
+          <span>{errorText}</span>
         </div>
       ) : null}
 
-      {racing || room.result ? (
+      {racing || shownResult ? (
         <RaceView
           map={map}
           racers={activeSnapshot?.racers ?? []}
@@ -464,24 +642,28 @@ export function Embed(): React.ReactElement {
         <section className="card stack">
           <h1>{isTeacher ? '시작 준비' : '대기 중'}</h1>
           <p className="muted">
-            {isTeacher
-              ? '수업 앱에서 시작을 누르면 경기가 시작됩니다.'
-              : '선생님이 시작하면 경기가 보입니다.'}
+            {isLocal
+              ? lobbyPeople.length > 0
+                ? `${lobbyPeople.length}명 · 수업 앱에서 시작을 누르면 경기가 시작됩니다.`
+                : '수업 앱이 명단을 넣어 주기를 기다리는 중…'
+              : isTeacher
+                ? '수업 앱에서 시작을 누르면 경기가 시작됩니다.'
+                : '선생님이 시작하면 경기가 보입니다.'}
           </p>
           {/* 연동 모드에서는 코드·QR 을 숨긴다 — 학생은 단추 하나로 들어왔다 */}
           {!mount.hideJoinUi && room.snapshot ? (
             <div className="joincode">{room.snapshot.room.joinCode}</div>
           ) : null}
-          {room.snapshot ? (
+          {lobbyPeople.length > 0 ? (
             <div className="card card--tight" style={{ maxHeight: 260, overflow: 'auto' }}>
-              {room.snapshot.participants.map((p) => (
-                <div key={p.id} className={`lb-row${p.id === room.me?.id ? ' lb-row--mine' : ''}`}>
-                  <span className="lb-rank" aria-hidden="true">{p.online ? '●' : '○'}</span>
+              {lobbyPeople.map((x) => (
+                <div key={x.id} className={`lb-row${x.id === room.me?.id ? ' lb-row--mine' : ''}`}>
+                  <span className="lb-rank" aria-hidden="true">{x.online ? '●' : '○'}</span>
                   <span className="lb-name">
-                    <span className="swatch" style={{ background: `hsl(${p.hue} 85% 62%)` }} aria-hidden="true" />
-                    <span>{displayName(p)}</span>
+                    <span className="swatch" style={{ background: `hsl(${x.hue} 85% 62%)` }} aria-hidden="true" />
+                    <span>{displayName(x)}</span>
                   </span>
-                  <span className="faint">{p.online ? '접속' : '대기'}</span>
+                  <span className="faint">{isLocal ? '참가' : x.online ? '접속' : '대기'}</span>
                 </div>
               ))}
             </div>
@@ -501,9 +683,9 @@ export function Embed(): React.ReactElement {
         </section>
       ) : null}
 
-      {room.result ? (
+      {shownResult ? (
         <section className="card">
-          <ResultPanel result={room.result} myParticipantId={room.me?.id ?? null} />
+          <ResultPanel result={shownResult} myParticipantId={room.me?.id ?? null} />
         </section>
       ) : null}
     </div>
@@ -517,5 +699,16 @@ function buildFinishedPayload(result: import('@marble/protocol').RoundResult, mo
     // 브라우저를 거쳐 온 위 result 는 화면용이다.
     verifyUrl: `${location.origin}/api/rooms/${mount?.roomCode ?? ''}/results/${result.roundId}`,
     webhookSent: true,
+    serverVerified: true,
   };
+}
+
+/**
+ * local 모드 결과.
+ *
+ * 확인해 줄 서버가 없으므로 verifyUrl 은 null 이고 serverVerified 는 false 다.
+ * 이것을 true 로 적으면 부모 앱은 확인된 값인 줄 알고 성적·평가에 쓴다.
+ */
+function buildLocalFinishedPayload(result: import('@marble/protocol').RoundResult) {
+  return { result, verifyUrl: null, webhookSent: false, serverVerified: false };
 }

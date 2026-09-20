@@ -4,7 +4,29 @@
 
 ---
 
-## 한눈에
+## 두 가지 모드
+
+| | `mode: 'local'` | `mode: 'live'` |
+|---|---|---|
+| 도는 곳 | iframe 안에서 혼자 | 방 + 학생 각자 기기 |
+| 부모 앱 서버 | 필요 없다 | 필요하다 (티켓 서명) |
+| 티켓·공유 비밀 | 없다 | 있어야 한다 |
+| 활동 앱에 등록 | 필요 없다 | 필요하다 |
+| 결과 | 브라우저가 계산 (`serverVerified: false`) | 서버가 확정 + 서명 webhook |
+
+**이 문서의 나머지는 전부 `live` 이야기입니다.**
+`local` 은 준비할 것이 없어서 설명할 것도 거의 없습니다 —
+`createMarbleRace({ activityOrigin, mode: 'local', participants })` 로 띄우고,
+`setParticipants` · `startRound` 를 부르고, `roundFinished` 를 받으면 끝입니다.
+돌아가는 예제는 `examples/host-app/local.html` (서버 코드 0줄),
+붙여 넣을 프롬프트는 [integration-prompt-local.md](integration-prompt-local.md) 에 있습니다.
+
+`local` 결과에는 `verifyUrl: null`, `webhookSent: false`, `serverVerified: false` 가 옵니다.
+교사 브라우저가 계산한 값이므로 성적·평가처럼 다툼이 생길 수 있는 곳에는 쓰지 마세요.
+
+---
+
+## 한눈에 (live 모드)
 
 ```
 부모 수업 앱                        구슬 레이스

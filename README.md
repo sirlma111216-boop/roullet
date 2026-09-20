@@ -163,8 +163,21 @@ await race.startRound();
 계약 전체와 티켓 만드는 법은 **[docs/embedding.md](docs/embedding.md)**,
 돌아가는 예제는 `examples/host-app` 에 있습니다.
 
-**다른 Claude Code 세션에 붙여 넣을 프롬프트**가 필요하면
-[docs/integration-prompt.md](docs/integration-prompt.md) 를 통째로 복사하세요.
+### 붙이는 방법이 두 가지입니다
+
+고르는 기준은 **학생 휴대폰이 필요한가** 하나뿐입니다.
+
+| | 화면 하나에서만 (`mode: 'local'`) | 학생 휴대폰까지 (`mode: 'live'`) |
+|---|---|---|
+| 부모 앱에 서버가 | 없어도 된다 (정적 사이트도 가능) | 있어야 한다 |
+| 미리 등록할 것 | **없다** | 공유 비밀 + 주소 등록 |
+| 결과를 서버가 확인해 주나 | 아니오 (`serverVerified: false`) | 예 (서명된 webhook) |
+| 쓰는 문서 | [integration-prompt-local.md](docs/integration-prompt-local.md) | [integration-prompt.md](docs/integration-prompt.md) |
+
+사다리타기·발표자 뽑기를 대신하는 용도라면 왼쪽으로 충분하고, 준비할 것이 없습니다.
+위 그림과 「서명된 webhook」 설명은 오른쪽(live) 이야기입니다.
+
+**다른 Claude Code 세션에 붙여 넣을 프롬프트**는 위 표의 문서를 통째로 복사하세요.
 붙이는 쪽이 이 저장소를 안 봐도 되도록 계약과 코드를 전부 담았습니다.
 
 ---

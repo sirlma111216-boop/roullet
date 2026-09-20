@@ -11,10 +11,23 @@
  *  3. 정리할 때 destroy 를 보내고 iframe 을 통째로 버린다 —
  *     React StrictMode 의 두 번 마운트에서 방·소켓이 두 개 생기지 않게.
  *
+ * ── 두 가지 모드 ────────────────────────────────────────────────────
+ *  `local` — 화면 하나(프로젝터)에서 돌린다. **아무 준비도 필요 없다.**
+ *            부모 앱에 서버가 없어도 되고, 활동 앱에 등록할 것도 없다.
+ *            사다리타기·발표자 뽑기를 대신하는 용도라면 이것이면 된다.
+ *
+ *  `live`  — 학생이 각자 기기로 들어온다. 부모 **서버**가 서명한 티켓이 필요하고,
+ *            그 연동을 활동 앱에 미리 등록해 두어야 한다.
+ *
  * ── 결과를 믿는 방법 ─────────────────────────────────────────────────
  *  roundFinished 로 오는 결과는 **화면용** 이다. 브라우저를 거치므로 손댈 수 있다.
- *  실제로 발표자를 기록할 때는 활동 서버가 서명해 보낸 webhook 이나,
+ *
+ *  live 모드에서 실제로 발표자를 기록할 때는 활동 서버가 서명해 보낸 webhook 이나,
  *  payload.verifyUrl 을 부모 **서버**에서 다시 조회한 값을 써라.
+ *
+ *  local 모드에는 확인해 줄 서버가 없다 — payload.serverVerified 가 false 로 온다.
+ *  화면 하나에서 다 같이 보는 용도에는 충분하지만, 성적처럼 다툼이 생길 수 있는
+ *  곳에 쓰려면 live 모드를 써야 한다.
  */
 
 import {
@@ -47,22 +60,37 @@ export interface MarbleRaceEvents {
 export interface MarbleRaceOptions {
   /** 활동 앱이 배포된 주소 (예: https://marble.example.workers.dev) */
   activityOrigin: string;
-  /** 부모 수업 앱에 등록된 연동 id */
-  integrationId: string;
+  /**
+   * `local` — 화면 하나에서 돌린다. 서버도 티켓도 등록도 필요 없다.
+   * `live`  — 학생 기기까지 쓴다. ticket 이 반드시 있어야 한다.
+   *
+   * 없으면 `live` 로 본다(이 값을 모르던 옛 코드와 호환).
+   */
+  mode?: 'local' | 'live';
+  /** 부모 수업 앱에 등록된 연동 id. `local` 에서는 쓰지 않는다. */
+  integrationId?: string;
   /**
    * 부모 앱 **서버**가 발급한 launch ticket.
    * 브라우저에서 만들지 마라 — 공유 비밀이 새어 나간다.
+   * `local` 모드에서는 주지 않는다.
    */
-  ticket: string;
-  /** 교사 화면으로 열지 학생 화면으로 열지 */
-  view: 'teacher' | 'student';
+  ticket?: string;
+  /** 교사 화면으로 열지 학생 화면으로 열지. `local` 은 늘 교사 화면이다. */
+  view?: 'teacher' | 'student';
   /** 연동 모드에서는 코드·QR 상자를 숨긴다(학생은 단추 하나로 들어온다) */
   hideJoinUi?: boolean;
   /** iframe 에 붙일 제목(접근성) */
   title?: string;
+  /**
+   * `local` 전용 — 처음부터 넣어 둘 명단.
+   * 이걸 주면 mount 뒤에 setParticipants 를 따로 부르지 않아도 된다.
+   */
+  participants?: SetParticipantsPayload['participants'];
 }
 
 export interface MarbleRaceHandle {
+  /** 이 핸들이 어느 모드로 열렸는지 */
+  readonly mode: 'local' | 'live';
   /** iframe 을 element 안에 만든다. 같은 핸들로 두 번 부르지 않는다. */
   mount(element: HTMLElement): void;
   /** iframe 과 리스너를 모두 정리한다 */
@@ -86,6 +114,17 @@ export interface MarbleRaceHandle {
 export function createMarbleRace(options: MarbleRaceOptions): MarbleRaceHandle {
   const sessionId = `mr-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
   const activityOrigin = new URL(options.activityOrigin).origin;
+  const mode = options.mode ?? 'live';
+
+  // 여기서 바로 막는다. iframe 을 띄운 뒤 거절당하면 「왜 안 되지」로 오래 헤맨다.
+  if (mode === 'live' && !options.ticket) {
+    throw new Error(
+      "live 모드에는 부모 서버가 서명한 ticket 이 필요합니다. 서버 없이 화면 하나에서 돌리려면 mode: 'local' 로 여세요.",
+    );
+  }
+  if (mode === 'local' && options.ticket) {
+    throw new Error("local 모드에는 ticket 이 필요 없습니다. 학생 기기까지 쓰려면 mode: 'live' 로 여세요.");
+  }
 
   let iframe: HTMLIFrameElement | null = null;
   let container: HTMLElement | null = null;
@@ -155,11 +194,13 @@ export function createMarbleRace(options: MarbleRaceOptions): MarbleRaceHandle {
         if (!mounted) {
           mounted = true;
           void send('mount', {
+            mode,
             integrationId: options.integrationId,
             ticket: options.ticket,
-            view: options.view,
+            view: options.view ?? 'teacher',
             hideJoinUi: options.hideJoinUi ?? true,
             locale: 'ko',
+            participants: mode === 'local' ? options.participants : undefined,
           } satisfies MountPayload).catch((err: unknown) => {
             emit('error', {
               code: 'mount_failed',
@@ -218,6 +259,7 @@ export function createMarbleRace(options: MarbleRaceOptions): MarbleRaceHandle {
       return capabilities;
     },
     sessionId,
+    mode,
 
     mount(element: HTMLElement): void {
       if (destroyed) throw new Error('이미 정리된 핸들입니다.');
