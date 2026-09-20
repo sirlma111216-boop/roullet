@@ -260,6 +260,14 @@ function withSecurityHeaders(res: Response, env: Env, url: URL): Response {
       `form-action 'none'`,
     ].join('; '),
   );
+  // 삽입 SDK 는 다른 수업 앱이 **다른 origin 에서** 가져가야 한다.
+  // 교차 origin 으로 ES 모듈을 가져오려면 CORS 가 열려 있어야 한다.
+  // 공개 자바스크립트 파일이라 누구에게나 열어도 된다.
+  if (url.pathname.startsWith('/sdk/')) {
+    headers.set('access-control-allow-origin', '*');
+    headers.set('cache-control', 'public, max-age=3600');
+  }
+
   headers.set('x-content-type-options', 'nosniff');
   headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   headers.set('permissions-policy', 'geolocation=(), microphone=(), camera=(), interest-cohort=()');

@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# SDK 빌드 결과가 화면 자산으로 복사되는 자리
+apps/web/public/sdk/
 .wrangler/
 *.tsbuildinfo
 

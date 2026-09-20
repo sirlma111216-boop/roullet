@@ -14,7 +14,10 @@ export default defineConfig({
       formats: ['es'],
       fileName: () => 'marble-race-sdk.js',
     },
-    outDir: 'dist',
+    // 화면 자산 안으로 내보낸다. Vite 가 public/ 을 dist/ 로 복사하므로
+    // 배포하면 https://<주소>/sdk/marble-race-sdk.js 로 내려받을 수 있다.
+    // 다른 수업 앱이 번들러 없이 <script type="module"> 로 가져다 쓰는 길이다.
+    outDir: '../../apps/web/public/sdk',
     emptyOutDir: true,
     sourcemap: true,
     target: 'es2022',

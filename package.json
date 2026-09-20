@@ -21,7 +21,7 @@
     "dev": "npm run dev --workspace=apps/web",
     "dev:worker": "npm run dev --workspace=apps/worker",
     "dev:host": "npm run dev --workspace=examples/host-app",
-    "build": "npm run build --workspace=apps/web && npm run build --workspace=packages/embed-sdk",
+    "build": "npm run build --workspace=packages/embed-sdk && npm run build --workspace=apps/web",
     "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json && tsc -p tsconfig.worker.json",
     "test": "vitest run",
     "test:watch": "vitest",

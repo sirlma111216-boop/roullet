@@ -13,9 +13,19 @@ GitHub Pages 같은 정적 호스팅은 파일만 내보내므로 WebSocket 을 
               └─ 그 밖         → Workers Static Assets (화면 파일)
 ```
 
-`/api/*` 와 `/ws` 는 `run_worker_first` 로 **정적 파일보다 먼저** Worker 가 잡습니다.
-이게 없으면 정적 처리가 `/api/*` 를 먼저 먹고, API 오류가 `index.html` 로 바뀌어
-클라이언트가 JSON 을 기대한 자리에서 HTML 을 받습니다.
+`run_worker_first: true` 로 **모든 요청을 Worker 가 먼저** 봅니다.
+
+경로 몇 개만 적어 두면(예: `["/api/*", "/ws"]`) 나머지는 Worker 를 아예 거치지 않고
+정적 자산 계층이 바로 내보냅니다. 그러면 두 가지가 깨집니다.
+
+- API 오류가 `index.html` 로 바뀌어, 클라이언트가 JSON 을 기대한 자리에서 HTML 을 받습니다.
+- Worker 가 붙이는 **보안 헤더가 화면 파일에 하나도 안 붙습니다**
+  (CSP·frame-ancestors·nosniff·referrer-policy). 실제로 그렇게 배포되어 있었고,
+  운영 주소의 응답에 보안 헤더가 하나도 없었습니다.
+
+정적 파일은 여전히 `env.ASSETS` 가 내보내고, Worker 는 헤더만 씌웁니다.
+`frame-ancestors` 는 환경 변수로 정하므로 코드에서 붙일 수밖에 없습니다 —
+`_headers` 파일은 정적 자산 전용이라 환경 변수를 읽지 못합니다.
 
 ---
 
