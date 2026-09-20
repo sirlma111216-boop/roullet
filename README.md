@@ -1,5 +1,8 @@
 # 교실 구슬 레이스
 
+**실제 주소: <https://classroom-marble-race.sirlma.workers.dev>**
+저장소: <https://github.com/sirlma111216-boop/roullet>
+
 구슬이 굴러 내려가 결승선을 통과한 순서로 **발표자·정리 도우미·문제 선택권**을 정하는
 수업용 웹 앱입니다. 학생은 앱을 깔지 않고 휴대폰 브라우저로 들어옵니다.
 
@@ -171,16 +174,20 @@ await race.startRound();
 - 8개 맵 × 인원 6가지 × 시드 3개 = 144판 자동 시뮬레이션에서 벽 이탈·영구 정체 0건
 - 브라우저로 8개 맵을 모두 시작→진행→결과까지 플레이
 - 실제 WebSocket 60명·100명 부하 시험 통과
-- **아직 배포하지 않았습니다.** Cloudflare 계정 연결이 필요합니다(마지막 단계는 아래).
+- **배포했습니다.** 운영 주소에서 같은 검사 33건을 다시 돌려 통과했고, 학생 60명
+  동시 접속도 통과했습니다(지연 중앙 87ms).
 - **실제 모바일 기기로는 확인하지 못했습니다.** 화면 크기 에뮬레이션으로만 봤습니다.
 
-### 남은 마지막 단계 (사용자가 해야 하는 것)
+### 남은 선택 사항
 
-1. `npx wrangler login` 으로 Cloudflare 계정을 붙입니다.
-2. `apps/worker/wrangler.jsonc` 의 `name` 을 정합니다.
-3. `npm run build && npm run deploy`
-4. 연동을 쓴다면 `npx wrangler secret put INTEGRATION_SECRETS`
-5. GitHub 에 올리고 Cloudflare Workers Builds 로 저장소를 연결합니다.
+- **다른 수업 앱 연동을 쓰려면** 운영 비밀을 넣어야 합니다. 지금은 꺼져 있습니다.
+  ```bash
+  npx wrangler secret put INTEGRATION_SECRETS --config apps/worker/wrangler.jsonc
+  ```
+  그리고 `apps/worker/wrangler.jsonc` 의 `EMBED_ALLOWED_ORIGINS` 에 부모 앱 주소를 적습니다.
+  자세한 형식은 [docs/embedding.md](docs/embedding.md).
+- **push 할 때마다 자동 배포**하려면 Cloudflare 대시보드에서 Workers Builds 로
+  이 저장소를 연결하세요([docs/deploy.md](docs/deploy.md) 5절).
 
 ---
 

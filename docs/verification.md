@@ -237,7 +237,7 @@ Node 24, 단일 스레드, 화면 없음. 한 판을 **가능한 한 빨리** �
 - **`setConfig` 가 서버에 못 보내고도 성공이라고 답함** — 조용히 화면에만 반영하면
   부모 앱은 규칙이 바뀐 줄 알고 시작을 누릅니다. 이제 명시적으로 실패합니다.
 
-## 10. 타입 검사·검사·빌드·배포 — **부분 통과**
+## 10. 타입 검사·검사·빌드·배포 — **통과**
 
 ```
 npm run typecheck   ✓ (node · web · worker 세 갈래)
@@ -257,9 +257,38 @@ $ curl -s -o /dev/null -w "%{http_code} %{content_type}\n" /teacher
 200 text/html; charset=utf-8             ← SPA 새로고침이 된다
 ```
 
-> **미검증 — 실제로 배포하지 않았습니다.** Cloudflare 계정 연결(`wrangler login`)이
-> 없기 때문입니다. 미리보기 URL 도 없습니다.
-> 남은 단계는 README 의 「남은 마지막 단계」와 `docs/deploy.md` 에 적어 두었습니다.
+### 운영 배포 — 2026-09-20
+
+<https://classroom-marble-race.sirlma.workers.dev> 에 올렸습니다.
+버전 `b511d767-89e7-4c63-8b5d-6454d99ece39`, 업로드 145.07 KiB / gzip 29.36 KiB.
+
+**올린 것으로 끝내지 않고, 운영 주소에 대고 같은 검사를 다시 돌렸습니다.**
+
+```bash
+npm run e2e -- --students 4 --base https://classroom-marble-race.sirlma.workers.dev
+# 통과 33건, 실패 0건
+
+npm run loadtest -- --students 60 --base https://classroom-marble-race.sirlma.workers.dev
+# 60/60명 접속 1454ms · 전원 같은 eventId · 프레임 지연 중앙 87ms / p95 115ms
+```
+
+로컬(loopback)과 견주면 지연이 10ms → 87ms 로 늘었습니다. 인터넷을 한 번 건너가고
+오기 때문이며, 경기 화면은 보간해서 그리므로 이 정도는 눈에 띄지 않습니다.
+
+운영 주소의 라우팅도 확인했습니다.
+
+```
+GET /api/health  → {ok:true,maps:8,...}
+GET /api/nope    → 404 application/json     ← HTML 로 바뀌지 않는다
+GET /teacher     → 200 text/html            ← SPA 새로고침이 된다
+```
+
+브라우저로도 운영 주소에서 방을 만들고 8명으로 한 판(회전 관문)을 끝까지 돌려
+결과가 나오는 것을 확인했습니다.
+
+> **연동은 운영에서 꺼져 있습니다** (`integrationsConfigured: []`).
+> 비밀을 넣지 않았기 때문입니다 — 쓰려면 `wrangler secret put INTEGRATION_SECRETS`.
+> 교사·학생·혼자뽑기는 연동과 무관하게 동작합니다.
 
 ---
 
@@ -267,7 +296,6 @@ $ curl -s -o /dev/null -w "%{http_code} %{content_type}\n" /teacher
 
 | 무엇 | 왜 |
 |---|---|
-| Cloudflare 실제 배포·미리보기 | 계정 연결이 없음 |
 | 실제 모바일 기기 | 에뮬레이션으로만 확인 |
 | 실제 교실 무선망에서의 60명 동시 접속 | loopback 연결로만 시험 |
 | 무료 요금제로 충분한가 | 사용량을 재 두었지만(위 7번) 요금은 당시 공식 표를 봐야 함 |
