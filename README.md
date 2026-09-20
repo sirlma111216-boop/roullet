@@ -163,6 +163,10 @@ await race.startRound();
 계약 전체와 티켓 만드는 법은 **[docs/embedding.md](docs/embedding.md)**,
 돌아가는 예제는 `examples/host-app` 에 있습니다.
 
+**다른 Claude Code 세션에 붙여 넣을 프롬프트**가 필요하면
+[docs/integration-prompt.md](docs/integration-prompt.md) 를 통째로 복사하세요.
+붙이는 쪽이 이 저장소를 안 봐도 되도록 계약과 코드를 전부 담았습니다.
+
 ---
 
 ## 확인한 것과 확인하지 못한 것
