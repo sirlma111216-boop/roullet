@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>예제 수업 앱 — 구슬 레이스 붙이기</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; background: #0e1117; color: #e6edf3;
+        font: 16px/1.5 system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+      }
+      .wrap { max-width: 1400px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+      .cols { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; align-items: start; }
+      @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+      .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 14px; }
+      h1 { font-size: 1.3rem; margin: 0 0 4px; }
+      h2 { font-size: 1rem; margin: 0 0 8px; }
+      button {
+        font: inherit; background: #21262d; color: inherit; border: 1px solid #444c56;
+        border-radius: 7px; padding: 9px 14px; cursor: pointer; min-height: 40px;
+      }
+      button:hover:not(:disabled) { background: #2d333b; }
+      button:disabled { opacity: .45; cursor: not-allowed; }
+      button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .muted { color: #8b949e; font-size: .9rem; }
+      .frame { height: 78vh; min-height: 460px; border: 1px solid #30363d; border-radius: 10px; overflow: hidden; background: #080b14; }
+      ul { margin: 6px 0; padding-left: 18px; }
+      li { margin: 2px 0; }
+      .log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; background: #0d1117;
+             border: 1px solid #30363d; border-radius: 7px; padding: 8px; height: 190px; overflow: auto; white-space: pre-wrap; }
+      .pill { display: inline-block; border: 1px solid #444c56; border-radius: 999px; padding: 1px 9px; font-size: .78rem; }
+      .ok { color: #7ee787; } .bad { color: #ff7b72; } .warn { color: #d29922; }
+      select { font: inherit; background: #0d1117; color: inherit; border: 1px solid #444c56; border-radius: 7px; padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>예제 수업 앱</h1>
+        <p class="muted">
+          이 페이지가 «부모 수업 앱» 입니다. 구슬 레이스를 iframe 으로 붙이고, 이미 가진 학생 명단을 넘기고,
+          확정된 결과를 <strong>서명된 webhook</strong> 으로 돌려받습니다.
+        </p>
+      </header>
+
+      <div class="cols">
+        <div style="display: grid; gap: 14px">
+          <section class="card">
+            <h2>1. 활동 시작</h2>
+            <div class="row">
+              <button id="btn-start" class="primary">활동 열기(교사)</button>
+              <button id="btn-reset">활동 정리</button>
+            </div>
+            <p class="muted" id="room-info">아직 방이 없습니다.</p>
+          </section>
+
+          <section class="card">
+            <h2>2. 명단 넘기기</h2>
+            <p class="muted">수업 앱이 이미 가진 명단입니다. 학생은 코드·닉네임을 입력하지 않습니다.</p>
+            <ul id="roster"></ul>
+            <div class="row">
+              <button id="btn-participants" disabled>명단 넘기기</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>3. 규칙과 시작</h2>
+            <div class="row">
+              <select id="map">
+                <option value="classic-wheel">회전 관문</option>
+                <option value="classic-bubble" selected>버블 계곡</option>
+                <option value="classic-jar">항아리 탈출</option>
+                <option value="classic-night">네온 장거리</option>
+                <option value="mix-wind">바람 협곡</option>
+                <option value="mix-portal">포털 연구소</option>
+                <option value="mix-magnet">자석 공장</option>
+                <option value="mix-festival">종합 운동장</option>
+              </select>
+              <select id="rule">
+                <option value="first">첫 번째 도착</option>
+                <option value="topK3">상위 3명</option>
+                <option value="last">마지막 도착</option>
+                <option value="ranks258">2·5·8위</option>
+              </select>
+            </div>
+            <div class="row" style="margin-top: 8px">
+              <button id="btn-config" disabled>규칙 보내기</button>
+              <button id="btn-go" class="primary" disabled>경기 시작</button>
+              <button id="btn-cancel" disabled>취소</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>4. 학생으로 열어 보기</h2>
+            <p class="muted">다른 창에서 이 주소를 열면 그 학생으로 들어갑니다(코드 입력 없음).</p>
+            <div class="row" id="student-links"></div>
+          </section>
+
+          <section class="card">
+            <h2>확정된 결과 <span class="pill">서명 검증됨</span></h2>
+            <p class="muted">
+              iframe 이 postMessage 로 보낸 결과는 «화면용» 입니다. 아래는 활동 <em>서버</em>가 서명해
+              이 서버로 보낸 것만 모은 것입니다.
+            </p>
+            <div id="confirmed" class="muted">아직 없습니다.</div>
+          </section>
+        </div>
+
+        <div style="display: grid; gap: 14px">
+          <section class="card">
+            <h2>활동 앱 (iframe)</h2>
+            <div class="row" style="margin-bottom: 8px">
+              <span class="pill" id="st-available">available ✕</span>
+              <span class="pill" id="st-ready">ready ✕</span>
+              <span class="pill" id="st-lobby">연결 0명</span>
+              <span class="pill" id="st-round">라운드 —</span>
+            </div>
+            <div class="frame" id="frame"></div>
+          </section>
+          <section class="card">
+            <h2>이벤트 기록</h2>
+            <div class="log" id="log"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { createMarbleRace } from '/sdk.js';
+
+      const ACTIVITY_ORIGIN = '__ACTIVITY_ORIGIN__';
+      const INTEGRATION_ID = '__INTEGRATION_ID__';
+
+      const $ = (id) => document.getElementById(id);
+      const log = (msg, cls = '') => {
+        const line = document.createElement('div');
+        if (cls) line.className = cls;
+        line.textContent = `${new Date().toLocaleTimeString('ko-KR')}  ${msg}`;
+        $('log').prepend(line);
+      };
+
+      let handle = null;
+      let lesson = null;
+
+      async function api(path, body) {
+        const res = await fetch(path, {
+          method: body ? 'POST' : 'GET',
+          headers: { 'content-type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? '요청 실패');
+        return data;
+      }
+
+      async function refresh() {
+        lesson = await api('/api/lesson');
+        $('roster').innerHTML = lesson.roster.map((s) => `<li>${s.name} <span class="muted">(${s.id})</span></li>`).join('');
+        $('room-info').textContent = lesson.roomCode
+          ? `방 ${lesson.roomCode} · 활동 ${lesson.activityId}`
+          : '아직 방이 없습니다.';
+        $('student-links').innerHTML = lesson.roomCode
+          ? lesson.roster
+              .slice(0, 4)
+              .map((s) => `<a href="/?student=${s.id}" target="_blank"><button>${s.name}으로 열기</button></a>`)
+              .join('')
+          : '<span class="muted">활동을 먼저 여세요.</span>';
+        $('confirmed').innerHTML = lesson.confirmed.length
+          ? lesson.confirmed
+              .map(
+                (c) =>
+                  `<div>· ${c.roundId.slice(0, 8)} 판${c.revision} <span class="pill">${
+                    c.selectionMode === 'manual' ? '교사 지정' : '물리 경기'
+                  }</span> ${c.outcome === 'timeout' ? '<span class="warn">제한시간 초과 — 당첨자 없음</span>' : ''}<br>&nbsp;&nbsp;${
+                    c.winners.map((w) => `${w.rank ?? '지정'}위 <strong>${w.name}</strong>${w.award ? ` — ${w.award}` : ''}`).join(', ') ||
+                    '(없음)'
+                  }</div>`,
+              )
+              .join('')
+          : '아직 없습니다.';
+      }
+
+      function mount(ticket, view) {
+        if (handle) handle.destroy();
+        $('frame').innerHTML = '';
+        handle = createMarbleRace({
+          activityOrigin: ACTIVITY_ORIGIN,
+          integrationId: INTEGRATION_ID,
+          ticket,
+          view,
+          hideJoinUi: true,
+          title: '구슬 레이스',
+        });
+
+        handle.on('available', (p) => {
+          $('st-available').textContent = `available ✓ ${p.build}`;
+          $('st-available').classList.add('ok');
+          log(`available — 판 ${p.protocolVersion}, 기능 ${p.capabilities.length}개`);
+          // 필요한 기능이 없으면 «옛 배포» 다
+          const needed = ['participants.set', 'round.start', 'result.signed-webhook'];
+          const missing = needed.filter((n) => !p.capabilities.includes(n));
+          if (missing.length) log(`활동 앱에 없는 기능: ${missing.join(', ')} — 다시 배포하세요`, 'bad');
+        });
+
+        handle.on('ready', (p) => {
+          $('st-ready').textContent = `ready ✓ ${p.view}`;
+          $('st-ready').classList.add('ok');
+          log(`ready — 방 ${p.joinCode}, 참가자 ${p.participantId ?? '(교사)'}`);
+          if (view === 'teacher') {
+            $('btn-participants').disabled = false;
+            $('btn-config').disabled = false;
+            $('btn-go').disabled = false;
+            $('btn-cancel').disabled = false;
+          }
+        });
+
+        handle.on('participantsChanged', (p) => {
+          $('st-lobby').textContent = `연결 ${p.onlineCount}명 / 명단 ${p.totalCount}명`;
+        });
+
+        handle.on('roundStarted', (p) => {
+          $('st-round').textContent = `라운드 ${p.snapshot.roundNumber} 진행 중`;
+          log(`roundStarted — ${p.roundId.slice(0, 8)} (${p.snapshot.racers.length}명)`);
+        });
+
+        handle.on('roundFinished', (p) => {
+          $('st-round').textContent = `라운드 ${p.result.ruleSnapshot.roundNumber} 끝`;
+          log(
+            `roundFinished(화면용) — ${p.result.winners.map((w) => w.nickname).join(', ') || '당첨자 없음'} · 서버에서 다시 확인: ${p.verifyUrl}`,
+            'warn',
+          );
+          // 서명된 webhook 이 도착했는지 잠시 뒤 확인
+          setTimeout(refresh, 1200);
+        });
+
+        handle.on('error', (p) => log(`error — ${p.code}: ${p.message}`, 'bad'));
+
+        handle.mount($('frame'));
+      }
+
+      /* ---- 교사 ---- */
+      $('btn-start').onclick = async () => {
+        try {
+          const r = await api('/api/activity/start', {});
+          log(`활동 ${r.reused ? '이어서' : '새로'} 열림 — 방 ${r.roomCode}`);
+          await refresh();
+          mount(r.ticket, 'teacher');
+        } catch (e) {
+          log(`활동을 열지 못했습니다: ${e.message}`, 'bad');
+        }
+      };
+
+      $('btn-reset').onclick = async () => {
+        await api('/api/activity/reset', {});
+        if (handle) handle.destroy();
+        handle = null;
+        $('frame').innerHTML = '';
+        for (const id of ['btn-participants', 'btn-config', 'btn-go', 'btn-cancel']) $(id).disabled = true;
+        $('st-available').textContent = 'available ✕';
+        $('st-ready').textContent = 'ready ✕';
+        log('활동을 정리했습니다.');
+        await refresh();
+      };
+
+      $('btn-participants').onclick = async () => {
+        try {
+          await handle.setParticipants(lesson.roster.map((s) => ({ id: s.id, nickname: s.name })));
+          log(`명단 ${lesson.roster.length}명을 넘겼습니다.`);
+        } catch (e) {
+          log(`명단 전달 실패: ${e.message}`, 'bad');
+        }
+      };
+
+      const RULES = {
+        first: { kind: 'first' },
+        topK3: { kind: 'topK', k: 3 },
+        last: { kind: 'last' },
+        ranks258: { kind: 'ranks', ranks: [2, 5, 8] },
+      };
+
+      $('btn-config').onclick = async () => {
+        try {
+          await handle.setConfig({
+            mapId: $('map').value,
+            rule: RULES[$('rule').value],
+            awards: [{ id: 'a', label: '발표자', slot: 0 }],
+          });
+          log(`규칙을 보냈습니다 — ${$('map').value} / ${$('rule').value}`);
+        } catch (e) {
+          log(`규칙 전달 실패: ${e.message}`, 'bad');
+        }
+      };
+
+      $('btn-go').onclick = async () => {
+        try {
+          const r = await handle.startRound(3);
+          log(`시작 요청 완료 — ${r.roundId.slice(0, 8)}`);
+        } catch (e) {
+          log(`시작 실패: ${e.message}`, 'bad');
+        }
+      };
+
+      $('btn-cancel').onclick = async () => {
+        try {
+          await handle.cancelRound('수업 앱에서 취소');
+          log('취소했습니다.');
+        } catch (e) {
+          log(`취소 실패: ${e.message}`, 'bad');
+        }
+      };
+
+      /* ---- 학생으로 열렸을 때 ---- */
+      const studentId = new URLSearchParams(location.search).get('student');
+      await refresh();
+      if (studentId) {
+        document.querySelectorAll('section.card')[0].style.display = 'none';
+        try {
+          const { ticket } = await api('/api/activity/student-ticket', { studentId });
+          log(`학생 ${studentId} 로 들어갑니다.`);
+          mount(ticket, 'student');
+        } catch (e) {
+          log(`학생 티켓을 받지 못했습니다: ${e.message}`, 'bad');
+        }
+      }
+    </script>
+  </body>
+</html>

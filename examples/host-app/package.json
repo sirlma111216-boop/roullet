@@ -1,0 +1,8 @@
+{
+  "name": "@marble/example-host-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "node server.mjs" },
+  "dependencies": { "@marble/protocol": "*" }
+}

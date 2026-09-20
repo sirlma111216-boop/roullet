@@ -1,0 +1,42 @@
+{
+  "name": "classroom-marble-race",
+  "version": "0.1.0",
+  "private": true,
+  "description": "교실 구슬 레이스 — 물리 기반 구슬 추첨으로 수업 역할을 정하는 실시간 웹 앱",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "packages/protocol",
+    "packages/game-core",
+    "packages/game-renderer",
+    "packages/embed-sdk",
+    "apps/web",
+    "apps/worker",
+    "examples/host-app"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "dev:worker": "npm run dev --workspace=apps/worker",
+    "dev:host": "npm run dev --workspace=examples/host-app",
+    "build": "npm run build --workspace=apps/web && npm run build --workspace=packages/embed-sdk",
+    "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json && tsc -p tsconfig.worker.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sim": "node scripts/simulate.mts",
+    "loadtest": "node scripts/loadtest.mts",
+    "verify": "npm run typecheck && npm run test && npm run build",
+    "deploy": "npm run deploy --workspace=apps/worker",
+    "deploy:dry": "npm run deploy:dry --workspace=apps/worker",
+    "e2e": "node scripts/e2e.mts",
+    "test:embed": "node scripts/embed-test.mts"
+  },
+  "devDependencies": {
+    "@types/node": "24.9.2",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vitest": "4.1.11"
+  }
+}

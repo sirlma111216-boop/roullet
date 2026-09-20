@@ -1,0 +1,19 @@
+{
+  "name": "@marble/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dry": "wrangler deploy --dry-run --outdir=.wrangler/dry",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "@marble/protocol": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260920.1",
+    "wrangler": "4.135.0"
+  }
+}

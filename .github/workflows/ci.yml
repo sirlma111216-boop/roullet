@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 같은 브랜치에 새 커밋이 오면 앞선 실행을 멈춘다
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 타입 검사 · 단위 검사 · 빌드
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: 설치
+        run: npm ci
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 단위·통합 검사
+        run: npm test
+
+      - name: 빌드
+        run: npm run build
+
+      - name: 배포 예행 연습 (올리지는 않는다)
+        run: npm run deploy:dry
+
+      # 맵이 여전히 완주 가능한지 본다. 무거우므로 인원을 줄여 돌린다.
+      # 전체 훑기(1·2·8·30·60·100명)는 손으로 `npm run sim` 을 돌린다.
+      - name: 맵 시뮬레이션 (짧게)
+        run: npm run sim -- --racers 8,30 --seeds 2
+
+  realtime:
+    name: 실시간 · 연동 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: 설치
+        run: npm ci
+
+      - name: 화면·SDK 빌드
+        run: npm run build
+
+      - name: 로컬 비밀 준비
+        working-directory: apps/worker
+        run: cp .dev.vars.example .dev.vars
+
+      - name: Worker 띄우기
+        working-directory: apps/worker
+        run: |
+          npx wrangler dev --port 8787 --local > /tmp/worker.log 2>&1 &
+          for i in $(seq 1 40); do
+            if grep -q "Ready on" /tmp/worker.log; then break; fi
+            sleep 2
+          done
+          grep -q "Ready on" /tmp/worker.log || { echo "Worker 가 뜨지 않았습니다"; cat /tmp/worker.log; exit 1; }
+
+      - name: 예제 수업 앱 띄우기
+        run: |
+          node examples/host-app/server.mjs > /tmp/host.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:5180/api/lesson > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:5180/api/lesson > /dev/null || { echo "예제 앱이 뜨지 않았습니다"; cat /tmp/host.log; exit 1; }
+
+      - name: 한 판 끝까지 (교사 1 + 학생 4)
+        run: npm run e2e -- --students 4
+
+      - name: 연동 보안 경계
+        run: npm run test:embed
+
+      - name: 부하 (학생 30명)
+        run: npm run loadtest -- --students 30
+
+      - name: 서버 기록 (실패했을 때 보려고)
+        if: always()
+        run: |
+          echo "--- worker ---"; tail -40 /tmp/worker.log || true
+          echo "--- host ---"; tail -40 /tmp/host.log || true

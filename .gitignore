@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.wrangler/
+*.tsbuildinfo
+
+# 로컬 비밀 — 절대 올리지 않는다. 본보기는 .dev.vars.example 을 보라.
+.dev.vars
+.env
+.env.local
+
+# 도구가 내려받아 캐시해 두는 원본
+tools/.cache/
+
+# 편집기·운영체제
+.DS_Store
+.vscode/
+.idea/

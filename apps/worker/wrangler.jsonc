@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "classroom-marble-race",
+  "main": "src/index.ts",
+
+  // 이 날짜의 런타임 동작을 고정한다. 올릴 때는 변경 내역을 확인하고 배포 검증을 다시 한다.
+  "compatibility_date": "2026-09-20",
+
+  "assets": {
+    // 화면(apps/web)을 빌드한 결과. 먼저 `npm run build` 를 해야 한다.
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+
+    // 새로고침 라우팅: /teacher/... 같은 주소를 직접 열어도 index.html 을 준다.
+    "not_found_handling": "single-page-application",
+
+    // ★ 이것이 없으면 정적 파일 처리가 /api/* 를 먼저 잡아먹고,
+    //   API 오류가 index.html 로 바뀌어 「알 수 없는 오류」만 보이게 된다.
+    "run_worker_first": ["/api/*", "/ws"]
+  },
+
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "RoomDO" }]
+  },
+
+  // new_sqlite_classes 여야 무료 요금제에서 쓸 수 있다. new_classes 는 유료 전용이다.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDO"] }],
+
+  "observability": { "enabled": true },
+
+  // 비밀이 아닌 설정만 여기 둔다. 실제 비밀은 `wrangler secret put` 으로 넣는다.
+  // INTEGRATION_SECRETS 는 secret 이다 — 여기에 적지 마라.
+  "vars": {
+    "EMBED_ALLOWED_ORIGINS": ""
+  }
+}

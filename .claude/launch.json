@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "worker",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:worker"],
+      "port": 8787
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "host-app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:host"],
+      "port": 5180
+    }
+  ]
+}
