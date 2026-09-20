@@ -337,7 +337,8 @@ export function Embed(): React.ReactElement {
     const host = hostRef.current;
     if (host) {
       const needed = requiredFinishCount(cd.snapshot.rule, cd.snapshot.racers.length);
-      host.start(cd.snapshot, needed, performance.now() + (cd.startsAt - Date.now()));
+      // 남은 «길이» 를 넘긴다(절대 시각 금지 — 워커의 기준점이 다르다)
+      host.start(cd.snapshot, needed, Math.max(0, cd.startsAt - Date.now()));
     }
   }, [room.countdown, post, studentInterp]);
 

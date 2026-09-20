@@ -480,10 +480,14 @@ export class RoomDO extends DurableObject<Env> {
         d.lastSeq = -1;
         d.assistCount = 0;
         await this.save();
-        const startsAt = Date.now() + countdownSec * 1000;
-        this.broadcast(push('countdown', { roundId: built.value.roundId, startsAt, snapshot: built.value }));
+        const countdownMs = countdownSec * 1000;
+        const startsAt = Date.now() + countdownMs;
+        // startsAt 은 참고값이고, 받는 쪽은 countdownMs(길이)를 쓴다 — 시계 차이에 흔들리지 않게.
+        this.broadcast(
+          push('countdown', { roundId: built.value.roundId, startsAt, countdownMs, snapshot: built.value }),
+        );
         this.scheduleBroadcast();
-        reply({ roundId: built.value.roundId, startsAt, snapshot: built.value });
+        reply({ roundId: built.value.roundId, startsAt, countdownMs, snapshot: built.value });
         return;
       }
 

@@ -105,10 +105,8 @@ export function Teacher({ code }: { code: string }): React.ReactElement {
     if (!cd || !host) return;
     activeSnapshotRef.current = cd.snapshot;
     const needed = requiredFinishCount(cd.snapshot.rule, cd.snapshot.racers.length);
-    // 서버 시각 → 이 브라우저의 performance.now() 로 옮긴다.
-    // 시계 차이가 조금 있어도 카운트다운 연출에만 영향을 주고 결과에는 영향이 없다.
-    const startAt = performance.now() + (cd.startsAt - Date.now());
-    host.start(cd.snapshot, needed, startAt);
+    // 남은 «길이» 를 넘긴다. 절대 시각을 넘기면 워커의 기준점이 달라 엉뚱하게 기다린다.
+    host.start(cd.snapshot, needed, Math.max(0, cd.startsAt - Date.now()));
   }, [room.countdown]);
 
   /* ---- 카운트다운 숫자 ---- */

@@ -14,6 +14,7 @@
 /// <reference lib="webworker" />
 
 import { FIXED_DT, makeTiebreakOrder, RaceEngine, requireMap } from '@marble/game-core';
+import { clampStartDelayMs } from './timing.ts';
 
 export interface StartMessage {
   type: 'start';
@@ -25,8 +26,17 @@ export interface StartMessage {
   timeLimitSec?: number;
   /** 서버 스냅샷의 tiebreakOrder 를 구슬 번호로 바꾼 것 */
   tiebreakOrder: number[];
-  /** 경기를 실제로 시작할 시각(performance.now 기준). 카운트다운 동안은 멈춰 있는다. */
-  startAt: number;
+  /**
+   * 지금부터 **몇 ms 뒤**에 출발할지. 카운트다운 동안은 멈춰 있는다.
+   *
+   * ★ 절대 시각(performance.now() 값)을 넘기면 안 된다.
+   *   performance.now() 의 기준점(timeOrigin)은 **컨텍스트마다 다르다**.
+   *   메인 스레드는 페이지를 연 시각이 0 이고, 이 워커는 워커가 만들어진 시각이 0 이다.
+   *   그래서 메인의 값을 그대로 넘기면 「페이지를 열어 둔 시간」만큼 출발이 늦어진다
+   *   (실제로 그 버그가 있었다 — 9분 열어 둔 뒤 시작하면 9분을 기다렸다).
+   *   경계를 넘는 시간은 언제나 «길이» 로 주고받는다.
+   */
+  startDelayMs: number;
 }
 
 export type WorkerIn = StartMessage | { type: 'stop' } | { type: 'ping' };
@@ -181,7 +191,8 @@ self.onmessage = (ev: MessageEvent<WorkerIn>) => {
         tiebreakOrder: tiebreak,
       });
       engine.start();
-      startAt = msg.startAt;
+      // 넘어온 값이 터무니없어도 경기가 영영 안 시작되지는 않게 막아 둔다
+      startAt = performance.now() + clampStartDelayMs(msg.startDelayMs);
       lastTickAt = performance.now();
       lastFrameSentAt = 0;
       accumulatorMs = 0;

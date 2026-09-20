@@ -25,7 +25,7 @@ export interface ConnectionEvents {
   status(s: ConnectionStatus, detail?: string): void;
   /** 방 상태가 통째로 왔다 */
   snapshot(s: RoomSnapshot): void;
-  countdown(d: { roundId: string; startsAt: number; snapshot: RuleSnapshot }): void;
+  countdown(d: { roundId: string; startsAt: number; countdownMs: number; snapshot: RuleSnapshot }): void;
   frame(f: RaceFrame): void;
   result(r: RoundResult): void;
   interrupted(d: { roundId: string | null; reason: string; canResume: boolean }): void;
@@ -181,7 +181,7 @@ export class RoomConnection {
         this.emit('snapshot', msg.d as RoomSnapshot);
         break;
       case 'countdown':
-        this.emit('countdown', msg.d as { roundId: string; startsAt: number; snapshot: RuleSnapshot });
+        this.emit('countdown', msg.d as { roundId: string; startsAt: number; countdownMs: number; snapshot: RuleSnapshot });
         break;
       case 'frame':
         this.emit('frame', msg.d as RaceFrame);

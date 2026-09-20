@@ -87,7 +87,22 @@ export type ServerMessage =
   | { t: 'nack'; i: string; d: { code: string; message: string } }
   /** 통째로 내려보내는 방 상태. 받는 쪽은 필드별로 다시 만들지 말고 통째로 갈아 끼운다. */
   | { t: 'snapshot'; d: RoomSnapshot }
-  | { t: 'countdown'; d: { roundId: RoundId; startsAt: number; snapshot: RuleSnapshot } }
+  | {
+      t: 'countdown';
+      d: {
+        roundId: RoundId;
+        /** 서버 시계 기준의 출발 시각. 표시용 참고값일 뿐이다. */
+        startsAt: number;
+        /**
+         * 지금부터 몇 ms 뒤에 출발하는지.
+         *
+         * ★ 받는 쪽은 **이 길이**를 쓴다. startsAt 을 제 Date.now() 와 빼면
+         *   교실 PC 의 시계가 어긋난 만큼 출발이 밀리거나 당겨진다.
+         */
+        countdownMs: number;
+        snapshot: RuleSnapshot;
+      };
+    }
   | { t: 'frame'; d: RaceFrame }
   | { t: 'result'; d: RoundResult }
   /** 경기가 중단됨 — 새 결과를 확정하지 않는다 */

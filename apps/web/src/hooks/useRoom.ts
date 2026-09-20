@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HelloAck, Participant, RoomSnapshot, RoundResult, RuleSnapshot } from '@marble/protocol';
 import { RoomConnection, type ConnectionStatus } from '../net/connection.ts';
 import { deviceToken, setRejoinToken } from '../util/storage.ts';
+import { clampCountdownMs } from '../race/timing.ts';
 
 export interface UseRoomOptions {
   code: string;
@@ -21,8 +22,16 @@ export interface UseRoomOptions {
   enabled?: boolean;
 }
 
+/** 카운트다운 한 판의 상태 */
 export interface CountdownState {
   roundId: string;
+  /**
+   * 출발 시각 — **이 기기의 시계** 로 다시 계산한 값이다.
+   *
+   * 서버가 보낸 절대 시각을 그대로 쓰지 않는다. 교실 PC 의 시계가 몇 초만 어긋나도
+   * 카운트다운이 엉뚱한 숫자에서 시작하고 출발이 그만큼 밀린다.
+   * 서버가 함께 보낸 «길이(countdownMs)» 를 받은 순간에 더해 쓴다.
+   */
   startsAt: number;
   snapshot: RuleSnapshot;
 }
@@ -90,7 +99,9 @@ export function useRoom(opts: UseRoomOptions): RoomState {
         setMe((prev) => (prev ? (s.participants.find((p) => p.id === prev.id) ?? prev) : prev));
       }),
       conn.on('countdown', (d) => {
-        setCountdown(d);
+        // 서버 시각이 아니라 «받은 순간 + 남은 길이» 로 다시 잡는다
+        const ms = clampCountdownMs(d.countdownMs);
+        setCountdown({ roundId: d.roundId, snapshot: d.snapshot, startsAt: Date.now() + ms });
         setResult(null);
         setInterruption(null);
       }),

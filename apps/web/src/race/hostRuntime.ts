@@ -75,9 +75,10 @@ export class HostRuntime {
 
   /**
    * 라운드를 시작한다.
-   * @param startAt performance.now() 기준 시각. 카운트다운이 끝나는 순간.
+   * @param startDelayMs 지금부터 몇 ms 뒤에 출발할지(카운트다운 남은 길이).
+   *   **절대 시각을 넘기지 마라** — 워커의 performance.now() 는 기준점이 다르다.
    */
-  start(snapshot: RuleSnapshot, requiredFinishCount: number, startAt: number): void {
+  start(snapshot: RuleSnapshot, requiredFinishCount: number, startDelayMs: number): void {
     const w = this.ensureWorker();
     this.roundId = snapshot.roundId;
     this.seq = 0;
@@ -101,7 +102,7 @@ export class HostRuntime {
       requiredFinishCount,
       timeLimitSec: snapshot.timeLimitSec,
       tiebreakOrder,
-      startAt,
+      startDelayMs,
     };
     w.postMessage(msg);
   }

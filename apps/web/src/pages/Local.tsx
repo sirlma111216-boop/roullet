@@ -239,7 +239,7 @@ export function Local(): React.ReactElement {
       requiredFinishCount: requiredFinishCount(parsed.value, racerSnaps.length),
       timeLimitSec: map.timeLimitSec,
       tiebreakOrder: makeTiebreakOrder(seed, racerSnaps.length),
-      startAt: performance.now() + 600,
+      startDelayMs: 600,
     };
     w.postMessage(start);
   }, [config, racers, roundNumber, interpolator, finalize]);
