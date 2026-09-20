@@ -165,6 +165,12 @@ async function main(): Promise<void> {
   });
   check('다른 앱을 가리키는 티켓을 거절한다', !otherAud.ok, otherAud.reason);
 
+  const wrongOrigin = await tryHello(code, {
+    role: 'student',
+    ticket: makeTicket(baseClaims({ roomCode: code, activityId, origin: 'https://남의사이트.example' })),
+  });
+  check('등록되지 않은 주소에서 나온 티켓을 거절한다', !wrongOrigin.ok, wrongOrigin.reason);
+
   const unknownIntegration = await tryHello(code, {
     role: 'student',
     ticket: makeTicket(baseClaims({ roomCode: code, activityId, integrationId: '없는연동' })),

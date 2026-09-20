@@ -64,11 +64,13 @@ export type TicketCheck =
 /**
  * 티켓을 검증한다.
  * @param lookupSecret integrationId 로 비밀을 찾아 주는 함수. 모르면 null.
+ * @param lookupOrigins 그 연동에 등록된 부모 앱 주소들. 비어 있으면 주소 검사를 건너뛴다.
  */
 export async function verifyTicket(
   ticket: string,
   lookupSecret: (integrationId: string) => string | null,
   now = Date.now(),
+  lookupOrigins: (integrationId: string) => string[] = () => [],
 ): Promise<TicketCheck> {
   if (typeof ticket !== 'string' || ticket.length > 4096) return { ok: false, reason: '티켓 형식이 아닙니다.' };
   const dot = ticket.indexOf('.');
@@ -109,6 +111,13 @@ export async function verifyTicket(
   }
   if (typeof claims.roomCode !== 'string' || !claims.roomCode) {
     return { ok: false, reason: '방 코드가 없습니다.' };
+  }
+
+  // 부모 앱 주소를 적어 두었다면, 티켓이 그중 하나에서 나왔는지 본다.
+  // 비워 두면 검사하지 않는다(주소를 모르는 동안에도 쓸 수 있게).
+  const allowed = lookupOrigins(claims.integrationId);
+  if (allowed.length > 0 && !allowed.includes(claims.origin)) {
+    return { ok: false, reason: '이 연동에 등록되지 않은 주소에서 나온 티켓입니다.' };
   }
 
   return { ok: true, claims };

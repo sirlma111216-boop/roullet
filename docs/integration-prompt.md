@@ -9,34 +9,73 @@
 
 ---
 
-## 0. 먼저 할 일 (이 저장소에서, 사람이 한 번만)
+## 0. 먼저 할 일 (이 저장소에서, 한 번만)
 
-지금 운영 서버에는 연동이 **하나도 등록되어 있지 않습니다**
-(`/api/health` 의 `integrationsConfigured` 가 비어 있습니다).
+### 이게 뭐 하는 단계인가
+
+지금 구슬 레이스는 **독립된 가게**처럼 혼자 잘 열려 있습니다.
+이 단계는 나중에 **다른 수업 앱 안에 입점**할 때, 두 앱이 서로를 알아보도록
+**출입증 도장을 맞춰 두는 일**입니다.
+
+왜 필요한가: 다른 앱이 "이 학생은 우리 반 김하늘이고, 이 사람은 선생님이다" 라고
+알려 주면 구슬 레이스는 그 말을 믿고 교사 권한까지 줍니다. 아무나 그렇게 말할 수 있으면
+누구든 교사가 됩니다. 그래서 **두 앱만 아는 암호**로 서명한 쪽지(티켓)만 믿습니다.
+그 암호를 양쪽에 똑같이 넣어 두는 것이 이 단계입니다.
+
+### 언제 하나
+
+**다른 앱이 배포되어 주소가 생긴 뒤에** 합니다. 그 전에는 할 수 없고, 할 필요도 없습니다.
+구슬 레이스를 혼자 쓰는 동안에는 이 설정이 아예 필요 없습니다.
+
+필요한 것은 두 가지입니다.
+
+| 필요한 것 | 어디서 오나 |
+|---|---|
+| 공유 암호 (두 앱이 서로를 알아보는 비밀번호) | 아래 1번에서 만듭니다 |
+| 다른 앱의 **웹 주소** | 그 앱을 배포해야 생깁니다 (예: `https://내수업앱.pages.dev`) |
+
+### 하는 법
 
 ```bash
-# 1) 공유 비밀을 만든다 (채팅·이슈·커밋에 붙여 넣지 말 것)
+# 1) 공유 암호를 만든다. 나온 값을 복사해 둔다.
+#    (채팅·이슈·커밋에 붙여 넣지 말 것)
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
-# 2) 부모 앱 주소를 iframe 허용 목록에 넣는다
-#    apps/worker/wrangler.jsonc 의 vars.EMBED_ALLOWED_ORIGINS
-#    예: "https://my-class-app.example.com"
+```bash
+# 2) 다른 앱 주소를 iframe 허용 목록에 넣는다.
+#    apps/worker/wrangler.jsonc 파일을 열어 이 줄을 고친다:
+#      "vars": { "EMBED_ALLOWED_ORIGINS": "https://내수업앱.pages.dev" }
+#    이게 없으면 다른 앱 안에서 화면이 하얗게만 뜬다.
+```
 
-# 3) 연동을 등록한다 (JSON 한 줄을 붙여 넣으라고 물어본다)
+```bash
+# 3) 연동을 등록한다. 명령을 치면 "값을 입력하세요" 하고 기다린다.
+#    아래 JSON 을 한 줄로 만들어 붙여 넣고 Enter.
 npx wrangler secret put INTEGRATION_SECRETS --config apps/worker/wrangler.jsonc
-# {"my-class-app":{"secret":"<1번에서 만든 값>",
-#  "resultUrl":"https://my-class-app.example.com/api/marble-race/result",
-#  "origins":["https://my-class-app.example.com"]}}
+```
 
-# 4) 다시 배포
+붙여 넣을 내용 (줄바꿈 없이 한 줄로):
+
+```json
+{"내수업앱":{"secret":"1번에서_만든_값","resultUrl":"https://내수업앱.pages.dev/api/marble-race/result","origins":["https://내수업앱.pages.dev"]}}
+```
+
+| 칸 | 뜻 |
+|---|---|
+| `내수업앱` | 연동 id. 아무 이름이나 좋고, 양쪽이 같기만 하면 된다 |
+| `secret` | 1번에서 만든 암호. **다른 앱의 서버 환경 변수에도 같은 값**을 넣는다 |
+| `resultUrl` | 결과를 보내 줄 주소. 다른 앱에서 만들 webhook 수신 경로 |
+| `origins` | 이 연동의 티켓이 나올 수 있는 주소. 비워 두면 주소 검사를 안 한다 |
+
+```bash
+# 4) 다시 배포하고 확인한다. integrationsConfigured 에 id 가 보이면 끝.
 npm run build && npm run deploy
-
-# 5) 확인 — integrationsConfigured 에 id 가 보여야 한다
 curl -s https://classroom-marble-race.sirlma.workers.dev/api/health
 ```
 
-`resultUrl` 은 **부모 앱이 만들 webhook 수신 주소**입니다. 아직 없어도 괜찮습니다 —
-붙이는 쪽에서 만든 뒤 이 값을 고쳐 다시 배포하면 됩니다.
+`resultUrl` 은 다른 앱을 아직 안 만들었으면 나중에 고쳐도 됩니다 —
+3번과 4번을 다시 하면 됩니다.
 
 ---
 

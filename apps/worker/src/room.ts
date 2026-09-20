@@ -578,7 +578,12 @@ export class RoomDO extends DurableObject<Env> {
 
     /* ---- 연동 티켓이 있으면 그것이 신원이다 ---- */
     if (typeof p.ticket === 'string' && p.ticket) {
-      const check = await verifyTicket(p.ticket, (id) => this.integrations[id]?.secret ?? null);
+      const check = await verifyTicket(
+        p.ticket,
+        (id) => this.integrations[id]?.secret ?? null,
+        Date.now(),
+        (id) => this.integrations[id]?.origins ?? [],
+      );
       if (!check.ok) return deny(ErrorCodes.TICKET_INVALID, check.reason);
       const c = check.claims;
       if (d.integrationId && c.integrationId !== d.integrationId) {
