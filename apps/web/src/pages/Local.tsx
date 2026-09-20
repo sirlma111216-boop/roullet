@@ -31,6 +31,7 @@ import { FrameInterpolator } from '../race/interpolator.ts';
 import type { WorkerIn, WorkerOut } from '../race/physics.worker.ts';
 import { navigate } from '../router.ts';
 import { getViewPrefs, setViewPrefs, type ViewPrefs } from '../util/storage.ts';
+import { useRoundSound } from '../hooks/useRoundSound.ts';
 
 const SAMPLE = ['김하늘', '박서준', '이도윤', '최지우', '정민서', '강예린', '조하준', '윤서아'];
 
@@ -242,6 +243,8 @@ export function Local(): React.ReactElement {
     };
     w.postMessage(start);
   }, [config, racers, roundNumber, interpolator, finalize]);
+
+  useRoundSound({ muted: prefs.muted, countdownLeft: 0, result });
 
   const map = getMap(snapshotRef.current?.mapId ?? config.mapId) ?? requireMap('classic-wheel');
 

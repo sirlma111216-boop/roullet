@@ -32,6 +32,7 @@ import { Leaderboard } from '../components/Leaderboard.tsx';
 import { HostRuntime } from '../race/hostRuntime.ts';
 import { FrameInterpolator } from '../race/interpolator.ts';
 import { useRoom } from '../hooks/useRoom.ts';
+import { useRoundSound } from '../hooks/useRoundSound.ts';
 import { getViewPrefs, setViewPrefs, type ViewPrefs } from '../util/storage.ts';
 
 /** 배포 판 — 부모가 「옛 배포」를 알아볼 수 있게 함께 보낸다 */
@@ -384,6 +385,8 @@ export function Embed(): React.ReactElement {
     if (!room.result) return;
     post('roundFinished', buildFinishedPayload(room.result, mount));
   }, [room.result, mount, post]);
+
+  useRoundSound({ muted: prefs.muted, countdownLeft: 0, result: room.result });
 
   /* ---------------------------------------------------------------- 화면 */
 

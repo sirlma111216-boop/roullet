@@ -26,6 +26,7 @@ import { ResultPanel } from '../components/ResultPanel.tsx';
 import { QrCode } from '../components/QrCode.tsx';
 import { Leaderboard } from '../components/Leaderboard.tsx';
 import { statusText, useRoom } from '../hooks/useRoom.ts';
+import { useRoundSound } from '../hooks/useRoundSound.ts';
 import { navigate, studentJoinUrl } from '../router.ts';
 import { findTeacherRoom, getViewPrefs, setViewPrefs, type ViewPrefs } from '../util/storage.ts';
 import { RequestRejected } from '../net/connection.ts';
@@ -199,6 +200,10 @@ export function Teacher({ code }: { code: string }): React.ReactElement {
     [room.conn],
   );
 
+  // 카운트다운 남은 초 — 훅보다 먼저 계산해야 한다(훅은 조기 return 뒤에 올 수 없다)
+  const countdownLeft = room.countdown ? Math.max(0, Math.ceil((room.countdown.startsAt - now) / 1000)) : 0;
+  useRoundSound({ muted: prefs.muted, countdownLeft, result: showResult });
+
   /* ---- 화면 ---- */
 
   if (!record) {
@@ -232,7 +237,6 @@ export function Teacher({ code }: { code: string }): React.ReactElement {
   }
 
   const st = statusText(room.status);
-  const countdownLeft = room.countdown ? Math.max(0, Math.ceil((room.countdown.startsAt - now) / 1000)) : 0;
 
   return (
     <div className="page page--app">

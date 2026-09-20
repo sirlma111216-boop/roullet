@@ -15,6 +15,7 @@ import { ResultPanel } from '../components/ResultPanel.tsx';
 import { Leaderboard } from '../components/Leaderboard.tsx';
 import { FrameInterpolator } from '../race/interpolator.ts';
 import { statusText, useRoom } from '../hooks/useRoom.ts';
+import { useRoundSound } from '../hooks/useRoundSound.ts';
 import { navigate } from '../router.ts';
 import { getRejoinToken, getViewPrefs, setViewPrefs, type ViewPrefs } from '../util/storage.ts';
 
@@ -70,6 +71,8 @@ export function Play({ code, nickname }: { code: string; nickname?: string }): R
 
   const st = statusText(room.status);
   const countdownLeft = room.countdown ? Math.max(0, Math.ceil((room.countdown.startsAt - now) / 1000)) : 0;
+
+  useRoundSound({ muted: prefs.muted, countdownLeft, result: room.result });
 
   if (room.closedReason) {
     return (

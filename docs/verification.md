@@ -241,7 +241,7 @@ Node 24, 단일 스레드, 화면 없음. 한 판을 **가능한 한 빨리** �
 
 ```
 npm run typecheck   ✓ (node · web · worker 세 갈래)
-npm test            ✓ 136건
+npm test            ✓ 145건
 npm run build       ✓ 화면 395KB(gzip 120KB) + 물리 Worker 72KB + SDK 6.3KB(gzip 2.3KB)
 npm run deploy:dry  ✓ (아래 참고)
 ```

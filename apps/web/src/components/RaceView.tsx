@@ -13,6 +13,7 @@ import type { RacerSnapshot } from '@marble/protocol';
 import { displayName } from '@marble/protocol';
 import type { FrameInterpolator } from '../race/interpolator.ts';
 import type { ViewPrefs } from '../util/storage.ts';
+import { makeSound } from '../util/audio.ts';
 
 export interface RaceViewProps {
   map: MapDefinition;
@@ -39,6 +40,8 @@ export function RaceView(props: RaceViewProps): React.ReactElement {
   const rafRef = useRef<number>(0);
   const lastRef = useRef<number>(0);
   const [labelBudget, setLabelBudget] = useState(14);
+  /** 이미 소리를 낸 도착 수 — 새로 들어온 만큼만 울린다 */
+  const soundedRef = useRef(0);
 
   // 작은 화면에서는 이름표를 적게 — 60명이면 글자가 서로 먹는다
   useEffect(() => {
@@ -74,6 +77,16 @@ export function RaceView(props: RaceViewProps): React.ReactElement {
 
       interpolator.advance(dt);
       const sample = interpolator.sample();
+
+      // 새로 도착한 구슬이 있으면 소리를 낸다(앞 순위일수록 높은 음)
+      if (interpolator.finished.size > soundedRef.current) {
+        const sound = makeSound(prefs.muted);
+        const ranks = [...interpolator.finished.values()].sort((a, b) => a - b);
+        for (let i = soundedRef.current; i < ranks.length; i++) sound.finish(ranks[i]!);
+        soundedRef.current = ranks.length;
+      } else if (interpolator.finished.size === 0) {
+        soundedRef.current = 0;
+      }
 
       const marbles: RenderMarble[] = [];
       for (let i = 0; i < racers.length; i++) {
