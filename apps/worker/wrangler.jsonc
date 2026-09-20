@@ -38,7 +38,15 @@
 
   // 비밀이 아닌 설정만 여기 둔다. 실제 비밀은 `wrangler secret put` 으로 넣는다.
   // INTEGRATION_SECRETS 는 secret 이다 — 여기에 적지 마라.
+  //
+  // EMBED_ALLOWED_ORIGINS: 이 화면을 iframe 안에 넣어도 되는 부모 앱 주소.
+  // 그대로 CSP frame-ancestors 에 들어간다. 비어 있으면 아무도 넣을 수 없고,
+  // 붙이려는 앱에서는 **하얀 화면만** 나온다(오류 메시지도 안 뜬다).
+  //
+  // 여러 개는 **쉼표로** 구분한다(코드가 split(',') 로 읽는다).
+  // 새 수업 앱에 붙일 때는 그 앱의 주소를 뒤에 쉼표로 이어 붙이고 다시 배포하면 된다.
+  // local 모드(서버 없이 넣기)에서도 이것만은 필요하다 — 브라우저가 막기 때문이다.
   "vars": {
-    "EMBED_ALLOWED_ORIGINS": ""
+    "EMBED_ALLOWED_ORIGINS": "https://nc1395.labbitory.com,https://scienced.labbitory.com"
   }
 }
